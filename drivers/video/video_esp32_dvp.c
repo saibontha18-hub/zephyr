@@ -299,6 +299,18 @@ static int video_esp32_enqueue(const struct device *dev, struct video_buffer *vb
 
 	k_fifo_put(&data->fifo_in, vbuf);
 
+	/*
+	 * If the DMA engine parked itself on a buffer-starved frame
+	 * (active_vbuf == NULL), hand it the newly enqueued buffer and
+	 * restart it, so capture resumes instead of stalling forever.
+	 */
+	if (data->is_streaming && data->active_vbuf == NULL) {
+		data->active_vbuf = k_fifo_get(&data->fifo_in, K_NO_WAIT);
+		if (data->active_vbuf != NULL) {
+			return video_esp32_reload_dma(data);
+		}
+	}
+
 	return 0;
 }
 
